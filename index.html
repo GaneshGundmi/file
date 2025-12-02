@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>File Integrity & Signing Toolkit — Web</title>
+  <style>
+    :root{ --bg:#0f1724; --muted:#9fb3c8; --accent1:#6EE7B7; --accent2:#60A5FA; --accent3:#F472B6; --white:#e6f0f8; --radius:14px; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#071023,#0b1b2f);color:var(--white);padding:28px}
+    .wrap{max-width:980px;margin:0 auto}
+    header{display:flex;flex-direction:column;gap:6px;margin-bottom:18px}
+    header h1{font-size:28px;color:var(--accent1);margin:0;text-shadow:0 0 12px rgba(110,231,183,0.18)}
+    .lead{color:var(--muted);margin:0}
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:18px;margin-top:16px}
+    @media(max-width:920px){.grid{grid-template-columns:1fr}}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:var(--radius);padding:16px;box-shadow:0 10px 30px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.03)}
+    label{display:block;font-weight:700;color:var(--muted);margin-bottom:8px}
+    input[type=file],select,textarea{background:transparent;border:1px dashed rgba(255,255,255,0.06);padding:8px;border-radius:8px;color:var(--white);width:100%}
+    .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .btn{padding:8px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:700}
+    .primary{background:linear-gradient(90deg,var(--accent2),var(--accent1));color:#021024}
+    .ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--accent2)}
+    .alt{background:linear-gradient(90deg,var(--accent3),#fb923c);color:#021024}
+    .out{margin-top:12px;background:rgba(255,255,255,0.02);padding:12px;border-radius:10px;font-family:monospace;font-size:13px;color:var(--white);min-height:44px}
+    .file-list{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+    .file-entry{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.02)}
+    .small{font-size:13px;color:var(--muted)}
+    pre.pem{white-space:pre-wrap;background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;overflow:auto;color:var(--accent1)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>FILE INTEGRITY &amp; DIGITAL SIGNATURE WEB TOOL</h1>
+      <p class="lead">Compute file hashes • Create/verify manifests • Generate RSA keys • Sign & verify files — all in your browser.</p>
+    </header>
+
+    <div class="grid">
+      <main>
+        <div class="card">
+          <h3 style="margin:0 0 8px 0">1) File hashing &amp; manifest</h3>
+          <label>Select files to compute hashes</label>
+          <input id="files" type="file" multiple />
+          <div style="margin-top:8px" class="controls">
+            <select id="hashAlgo"><option>SHA-256</option><option>SHA-1</option><option>MD5</option></select>
+            <button id="computeHash" class="btn primary">Compute hashes</button>
+            <button id="downloadManifest" class="btn ghost">Download manifest</button>
+            <button id="clearFiles" class="btn ghost">Clear</button>
+          </div>
+
+          <div id="hashResults" class="out"></div>
+
+          <div style="margin-top:12px">
+            <label>Loaded files</label>
+            <div id="fileList" class="file-list small">No files loaded.</div>
+          </div>
+
+          <hr style="border:none;border-top:1px solid rgba(255,255,255,0.03);margin:12px 0" />
+
+          <label>Load manifest to verify</label>
+          <input id="manifestFile" type="file" accept="application/json" />
+          <div style="margin-top:8px" class="controls">
+            <button id="verifyManifest" class="btn alt">Verify manifest</button>
+          </div>
+          <div id="manifestResult" class="out small"></div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h3 style="margin:0 0 8px 0">2) Key generation, Sign &amp; Verify</h3>
+          <label>Generate RSA keypair (RSA-PSS, 2048)</label>
+          <div class="controls" style="margin-bottom:8px">
+            <button id="genKey" class="btn primary">Generate keys</button>
+            <button id="exportKeys" class="btn ghost">Export PEM</button>
+          </div>
+          <div id="keyInfo" class="out small">No keys yet.</div>
+
+          <hr style="border:none;border-top:1px solid rgba(255,255,255,0.03);margin:12px 0" />
+
+          <label>Sign a file</label>
+          <input id="signFileInput" type="file" />
+          <div class="controls" style="margin-top:8px">
+            <button id="signFileBtn" class="btn primary">Sign file</button>
+            <button id="downloadSignature" class="btn ghost">Download signature</button>
+          </div>
+          <div id="signResult" class="out small">No signature yet.</div>
+
+          <hr style="border:none;border-top:1px solid rgba(255,255,255,0.03);margin:12px 0" />
+
+          <label>Verify signature</label>
+          <input id="verifyFileInput" type="file" />
+          <input id="sigFileInput" type="file" accept="*/*" />
+          <textarea id="pubKeyPEM" placeholder="Paste public key PEM here" style="width:100%;height:120px;margin-top:8px;background:transparent;border:1px dashed rgba(255,255,255,0.04);color:var(--white);padding:8px;border-radius:8px"></textarea>
+          <div class="controls" style="margin-top:8px">
+            <button id="verifySigBtn" class="btn alt">Verify</button>
+          </div>
+          <div id="verifyResult" class="out small">Verification result appears here.</div>
+        </div>
+      </main>
+
+      <aside>
+        <!-- Info removed as requested -->
+      </aside>
+    </div>
+
+    <footer style="margin-top:18px;color:var(--muted);font-size:13px;text-align:center">Made for learning — hashes, RSA keys, signing.</footer>
+  </div>
+
+  <script>
+  // helpers
+  function ab2hex(buf){return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');}
+  function b64DecToArr(s){return Uint8Array.from(atob(s), c=>c.charCodeAt(0));}
+  function download(filename, data, isBinary=false){const blob = new Blob([data], {type: isBinary? 'application/octet-stream':'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);}
+
+  // simple MD5 placeholder
+  function md5(){return 'md5-demo-not-secure';}
+
+  async function hashFile(file, algo){ if(algo==='MD5') return md5(); const digest = await crypto.subtle.digest(algo, await file.arrayBuffer()); return ab2hex(digest); }
+
+  // UI elements
+  const filesEl = document.getElementById('files');
+  const hashAlgoEl = document.getElementById('hashAlgo');
+  const computeBtn = document.getElementById('computeHash');
+  const hashResults = document.getElementById('hashResults');
+  const downloadManifestBtn = document.getElementById('downloadManifest');
+  const clearFilesBtn = document.getElementById('clearFiles');
+  const fileList = document.getElementById('fileList');
+  let lastManifest = null;
+
+  function renderFileList(){ fileList.innerHTML=''; const files=Array.from(filesEl.files); if(files.length===0) fileList.textContent='No files loaded.'; else files.forEach(f=>{const el=document.createElement('div');el.className='file-entry';el.innerHTML=`<div>${f.name}</div><div class='small'>${(f.size/1024).toFixed(1)} KB</div>`; fileList.appendChild(el)}); }
+  filesEl.addEventListener('change', renderFileList);
+
+  computeBtn.addEventListener('click', async ()=>{ const files=Array.from(filesEl.files); if(files.length===0){hashResults.textContent='No files selected.'; return;} const algo=hashAlgoEl.value; hashResults.textContent='Computing...'; const manifest={algorithm:algo,files:{}}; for(const f of files){ const h=await hashFile(f,algo); manifest.files[f.name]=h; } lastManifest=manifest; hashResults.textContent=JSON.stringify(manifest,null,2); });
+  downloadManifestBtn.addEventListener('click', ()=>{ if(!lastManifest){alert('Compute hashes first'); return;} download('manifest.json', JSON.stringify(lastManifest,null,2)); });
+  clearFilesBtn.addEventListener('click', ()=>{ filesEl.value=''; renderFileList(); hashResults.textContent=''; lastManifest=null; });
+
+  const manifestFileEl = document.getElementById('manifestFile');
+  const verifyManifestBtn = document.getElementById('verifyManifest');
+  const manifestResult = document.getElementById('manifestResult');
+  verifyManifestBtn.addEventListener('click', async ()=>{ const mf=manifestFileEl.files[0]; if(!mf){manifestResult.textContent='Choose a manifest JSON file.'; return;} const text=await mf.text(); let manifest; try{manifest=JSON.parse(text);}catch(e){manifestResult.textContent='Invalid JSON.'; return;} const algo=manifest.algorithm||'SHA-256'; const files=manifest.files||{}; const mismatches=[]; for(const name of Object.keys(files)){ const expected=files[name]; const selected=Array.from(filesEl.files).find(f=>f.name===name); if(!selected){mismatches.push({file:name,status:'MISSING'}); continue;} const actual=await hashFile(selected,algo); if(actual!==expected) mismatches.push({file:name,status:'MISMATCH',actual}); } manifestResult.textContent = mismatches.length===0? '[OK] All files match manifest.' : '[FAIL]\n'+JSON.stringify(mismatches,null,2); });
+
+  // keys, sign, verify
+  let privateKeyObj=null, publicKeyObj=null, lastSignature=null;
+  const genKeyBtn=document.getElementById('genKey');
+  const exportKeysBtn=document.getElementById('exportKeys');
+  const keyInfo=document.getElementById('keyInfo');
+
+  async function exportPem(key,isPrivate){
+    const fmt = isPrivate? 'pkcs8':'spki';
+    const exported = await crypto.subtle.exportKey(fmt,key);
+    const b64 = btoa(String.fromCharCode(...new Uint8Array(exported)));
+    return (isPrivate? '-----BEGIN PRIVATE KEY-----\n':'-----BEGIN PUBLIC KEY-----\n') + b64.match(/.{1,64}/g).join('\n') + '\n' + (isPrivate? '-----END PRIVATE KEY-----':'-----END PUBLIC KEY-----') + '\n';
+  }
+
+  genKeyBtn.addEventListener('click', async ()=>{
+    keyInfo.textContent='Generating RSA-PSS 2048 keys (this may take a second)...';
+    const kp = await crypto.subtle.generateKey({name:'RSA-PSS',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'}, true, ['sign','verify']);
+    privateKeyObj=kp.privateKey; publicKeyObj=kp.publicKey;
+    const pubpem = await exportPem(publicKeyObj,false);
+
+    // Clean any literal "\n" sequences and render properly
+    const cleanPem = pubpem.replace(/\\n/g, '\n');
+    keyInfo.innerHTML = 'Keys generated.<br><br><strong>Public key (PEM):</strong><br>';
+    const pre = document.createElement('pre');
+    pre.className = 'pem';
+    pre.textContent = cleanPem;
+    keyInfo.appendChild(pre);
+    keyInfo.appendChild(document.createElement('br'));
+    const hint = document.createElement('div'); hint.style.marginTop = '8px'; hint.textContent = 'You can export keys or copy the public key.'; keyInfo.appendChild(hint);
+  });
+
+  exportKeysBtn.addEventListener('click', async ()=>{ if(!privateKeyObj||!publicKeyObj){alert('Generate keys first'); return;} const priv=await exportPem(privateKeyObj,true); const pub=await exportPem(publicKeyObj,false); download('private_key.pem',priv,false); download('public_key.pem',pub,false); });
+
+  const signFileInput=document.getElementById('signFileInput');
+  const signFileBtn=document.getElementById('signFileBtn');
+  const signResult=document.getElementById('signResult');
+  const downloadSignatureBtn=document.getElementById('downloadSignature');
+  signFileBtn.addEventListener('click', async ()=>{ const f=signFileInput.files[0]; if(!f){signResult.textContent='Pick a file to sign.'; return;} if(!privateKeyObj){signResult.textContent='Generate keys first.'; return;} const buf=await f.arrayBuffer(); const signature=await crypto.subtle.sign({name:'RSA-PSS',saltLength:32},privateKeyObj,buf); lastSignature=signature; signResult.textContent='[OK] Signed — signature length: '+signature.byteLength+' bytes.'; });
+  downloadSignatureBtn.addEventListener('click', ()=>{ if(!lastSignature){alert('No signature to download'); return;} download('signature.bin', new Uint8Array(lastSignature), true); });
+
+  const verifyFileInput=document.getElementById('verifyFileInput');
+  const sigFileInput=document.getElementById('sigFileInput');
+  const pubKeyPEM=document.getElementById('pubKeyPEM');
+  const verifySigBtn=document.getElementById('verifySigBtn');
+  const verifyResult=document.getElementById('verifyResult');
+
+  async function importPublicKeyFromPEM(pem){
+    const b64 = pem.replace(/-----[^-]+-----/g,'').replace(/\s+/g,'');
+    const bytes = b64DecToArr(b64);
+    return await crypto.subtle.importKey('spki', bytes.buffer, {name:'RSA-PSS',hash:'SHA-256'}, true, ['verify']);
+  }
+
+  verifySigBtn.addEventListener('click', async ()=>{ const f=verifyFileInput.files[0]; const sigF=sigFileInput.files[0]; if(!f||!sigF){verifyResult.textContent='Choose file and signature.'; return;} let pem = pubKeyPEM.value.trim(); if(!pem && publicKeyObj) pem = await exportPem(publicKeyObj,false); if(!pem){verifyResult.textContent='No public key provided.'; return;} try{ const pubk = await importPublicKeyFromPEM(pem); const buf = await f.arrayBuffer(); const sigBuf = await sigF.arrayBuffer(); const ok = await crypto.subtle.verify({name:'RSA-PSS',saltLength:32}, pubk, sigBuf, buf); verifyResult.textContent = ok? '[OK] Signature valid.' : '[FAIL] Signature invalid.'; }catch(e){ verifyResult.textContent='Error: '+e; } });
+
+  </script>
+</body>
+</html>
